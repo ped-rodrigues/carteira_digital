@@ -1,30 +1,100 @@
 #include <stdio.h>
 #include "meu_banco.h"
 
-void mostrarMenu(){
+/* ---------- menu e entrada ---------- */
+
+void mostrarMenu(void) {
     printf("\n===Banco===\n");
     printf("1 - Abrir banco\n");
     printf("2 - Ver historico de transacoes\n");
     printf("3 - Cadastrar cliente\n");
     printf("4 - Listar clientes\n");
+    printf("5 - Pedir emprestimo\n");
+    printf("6 - Relatorios\n");
     printf("s - Sair do banco\n");
 }
 
-int combinacaoValida(int tipo1, int tipo2){
+/* joga fora o que sobrou digitado ate o Enter */
+void limparBuffer(void) {
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF) {
+    }
+}
+
+/* ---------- regras de contas ---------- */
+
+int combinacaoValida(int tipo1, int tipo2) {
     if (tipo1 == tipo2) {
         return 0;
     }
 
-    if ((tipo1 == CORRENTE && tipo2 == SALARIO) || (tipo1 == SALARIO && tipo2 == CORRENTE))
-    {
+    if ((tipo1 == CORRENTE && tipo2 == SALARIO) || (tipo1 == SALARIO && tipo2 == CORRENTE)) {
         return 0;
     }
 
     return 1;
-    
 }
 
-Cliente lerCliente() {
+int podeAdicionarConta(Cliente c, int tipoNovo) {
+    if (c.qtdContas >= MAX_CONTAS) {
+        return 0;
+    }
+    if (c.qtdContas == 1) {
+        return combinacaoValida(c.contas[0].tipo, tipoNovo);
+    }
+    return 1;
+}
+
+const char *nomeTipo(int tipo) {
+    if (tipo == CORRENTE) {
+        return "corrente";
+    }
+    if (tipo == SALARIO) {
+        return "salario";
+    }
+    if (tipo == POUPANCA) {
+        return "poupanca";
+    }
+    return "desconhecido";
+}
+
+Cliente adicionarConta(Cliente c, int numero, int tipoNovo, float saldoInicial) {
+    char msg[TAM_TEXTO];
+
+    c.contas[c.qtdContas].numero = numero;
+    c.contas[c.qtdContas].tipo = tipoNovo;
+    c.contas[c.qtdContas].saldo = saldoInicial;
+    c.qtdContas = c.qtdContas + 1;
+
+    snprintf(msg, TAM_TEXTO, "Abriu conta %d (%s) com saldo %.2f", numero, nomeTipo(tipoNovo), saldoInicial);
+    c = registrarHistorico(c, msg);
+
+    return c;
+}
+
+int temConta(Cliente c, int tipo) {
+    int i;
+    for (i = 0; i < c.qtdContas; i++) {
+        if (c.contas[i].tipo == tipo) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+float saldoDoTipo(Cliente c, int tipo) {
+    int i;
+    for (i = 0; i < c.qtdContas; i++) {
+        if (c.contas[i].tipo == tipo) {
+            return c.contas[i].saldo;
+        }
+    }
+    return 0;
+}
+
+/* ---------- cadastro ---------- */
+
+Cliente lerCliente(void) {
     Cliente c;
 
     printf("Nome do cliente: ");
@@ -42,70 +112,191 @@ Cliente lerContas(Cliente c, int primeiroNumero) {
     float saldo;
     int mais = 1;
 
-    while (c.qtdContas < MAX_CONTAS && mais) {
+    /* repete enquanto cabem contas; o cliente precisa ter pelo menos 1 */
+    while (c.qtdContas < MAX_CONTAS && (mais || c.qtdContas == 0) && !feof(stdin)) {
         printf("Tipo de conta (1-corrente, 2-salario, 3-poupanca): ");
-        scanf("%d", &tipo);
+        if (scanf("%d", &tipo) != 1) {
+            limparBuffer();
+            tipo = 0;
+        }
 
-        if (tipo < CORRENTE || tipo > POUPANCA)
-        {
-            printf("Tipo inválido.\n");
-        } else if (!podeAdicionarConta(c, tipo))
-        {
+        if (tipo < CORRENTE || tipo > POUPANCA) {
+            printf("Tipo invalido.\n");
+        } else if (!podeAdicionarConta(c, tipo)) {
             printf("Esse cliente nao pode ter essa conta.\n");
         } else {
             printf("Saldo inicial: ");
-            scanf("%f", &saldo);
-            c = adicionarConta(c, primeiroNumero + c.qtdContas, tipo , saldo);
+            if (scanf("%f", &saldo) != 1) {
+                limparBuffer();
+                printf("Saldo invalido.\n");
+            } else {
+                c = adicionarConta(c, primeiroNumero + c.qtdContas, tipo, saldo);
+            }
         }
-        
-        if (c.qtdContas < MAX_CONTAS)
-        {
+
+        if (c.qtdContas < MAX_CONTAS && c.qtdContas > 0) {
             printf("Adicionar outra conta? (1-sim, 0-nao): ");
-            scanf("%d", &mais);
-        }    
+            if (scanf("%d", &mais) != 1) {
+                limparBuffer();
+                mais = 0;
+            }
+        }
     }
     return c;
 }
 
-int podeAdicionarConta(Cliente c, int tipoNovo) {
-    if (c.qtdContas >= MAX_CONTAS) {
-        return 0;
-    }
-    if (c.qtdContas == 1) {
-        return combinacaoValida(c.contas[0].tipo, tipoNovo);
-    }
-    return 1;
-}
+/* ---------- emprestimo ---------- */
 
-Cliente adicionarConta(Cliente c, int numero, int tipoNovo, float saldoInicial) {
-    c.contas[c.qtdContas].numero = numero ;
-    c.contas[c.qtdContas].tipo = tipoNovo ;
-    c.contas[c.qtdContas].saldo = saldoInicial;
-    c.qtdContas = c.qtdContas + 1;
-    return c ;
-}
-
-int temConta(Cliente c, int tipo) {
-    int i;
-    for ( i = 0; i < c.qtdContas ; i++)
-    {
-        if (c.contas[i].tipo == tipo)
-        {
-            return 1;
-        }
+/* corrente + poupanca, poupanca com saldo e ainda nao pegou emprestimo */
+int podeEmprestimo(Cliente c) {
+    if (temConta(c, CORRENTE) && temConta(c, POUPANCA) && c.emprestimo == 0 && saldoDoTipo(c, POUPANCA) > 0) {
+        return 1;
     }
     return 0;
 }
 
-float saldoDoTipo(Cliente c, int  tipo) {
+/* 25% de 10 vezes o saldo da poupanca */
+float limiteEmprestimo(Cliente c) {
+    return saldoDoTipo(c, POUPANCA) * MULT_EMPRESTIMO * PERC_EMPRESTIMO;
+}
+
+/* credita o valor na conta corrente e marca que o cliente ja pegou (a conferencia do limite e feita antes) */
+Cliente pegarEmprestimo(Cliente c, float valor) {
     int i;
-    for ( i = 0; i < c.qtdContas; i++)
-    {
-        if (c.contas[i].tipo == tipo)
-        {
-            return c.contas[i].saldo;
+    char msg[TAM_TEXTO];
+
+    for (i = 0; i < c.qtdContas; i++) {
+        if (c.contas[i].tipo == CORRENTE) {
+            c.contas[i].saldo = c.contas[i].saldo + valor;
         }
-        
     }
-    return 0;
+    c.emprestimo = 1;
+
+    snprintf(msg, TAM_TEXTO, "Pegou emprestimo de %.2f (creditado na corrente)", valor);
+    c = registrarHistorico(c, msg);
+
+    return c;
+}
+
+/* ---------- historico ---------- */
+
+/* guarda o texto; se a lista encher, descarta a linha mais antiga */
+Cliente registrarHistorico(Cliente c, const char *texto) {
+    int i;
+    char copia[TAM_TEXTO];
+
+    if (c.qtdHistorico >= MAX_HISTORICO) {
+        for (i = 1; i < MAX_HISTORICO; i++) {
+            snprintf(copia, TAM_TEXTO, "%s", c.historico[i]);
+            snprintf(c.historico[i - 1], TAM_TEXTO, "%s", copia);
+        }
+        c.qtdHistorico = MAX_HISTORICO - 1;
+    }
+
+    snprintf(c.historico[c.qtdHistorico], TAM_TEXTO, "%s", texto);
+    c.qtdHistorico = c.qtdHistorico + 1;
+
+    return c;
+}
+
+void mostrarHistorico(const Banco *b) {
+    int i, j;
+
+    if (b->qtdClientes == 0) {
+        printf("Nenhum cliente cadastrado.\n");
+        return;
+    }
+
+    for (i = 0; i < b->qtdClientes; i++) {
+        printf("\n%s:\n", b->clientes[i].nome);
+        if (b->clientes[i].qtdHistorico == 0) {
+            printf("  (sem transacoes)\n");
+        }
+        for (j = 0; j < b->clientes[i].qtdHistorico; j++) {
+            printf("  %d. %s\n", j + 1, b->clientes[i].historico[j]);
+        }
+    }
+}
+
+/* ---------- listagens e relatorios ---------- */
+
+void listarClientes(const Banco *b) {
+    int i, j;
+
+    if (b->qtdClientes == 0) {
+        printf("Nenhum cliente cadastrado.\n");
+        return;
+    }
+
+    for (i = 0; i < b->qtdClientes; i++) {
+        printf("%d) %s | %d conta(s) | emprestimo: %s\n", i + 1, b->clientes[i].nome,
+               b->clientes[i].qtdContas, b->clientes[i].emprestimo ? "sim" : "nao");
+        for (j = 0; j < b->clientes[i].qtdContas; j++) {
+            printf("     conta %d | %s | saldo %.2f\n", b->clientes[i].contas[j].numero,
+                   nomeTipo(b->clientes[i].contas[j].tipo), b->clientes[i].contas[j].saldo);
+        }
+    }
+}
+
+float saldoTotal(const Banco *b) {
+    int i, j;
+    float total = 0;
+
+    for (i = 0; i < b->qtdClientes; i++) {
+        for (j = 0; j < b->clientes[i].qtdContas; j++) {
+            total = total + b->clientes[i].contas[j].saldo;
+        }
+    }
+    return total;
+}
+
+void mostrarRelatorios(const Banco *b) {
+    int i, j, achou;
+
+    printf("\n--- Saldo total do banco ---\n");
+    printf("R$ %.2f\n", saldoTotal(b));
+
+    printf("\n--- Clientes aptos a emprestimo ---\n");
+    achou = 0;
+    for (i = 0; i < b->qtdClientes; i++) {
+        if (podeEmprestimo(b->clientes[i])) {
+            printf("%s (limite R$ %.2f)\n", b->clientes[i].nome, limiteEmprestimo(b->clientes[i]));
+            achou = 1;
+        }
+    }
+    if (!achou) {
+        printf("(nenhum)\n");
+    }
+
+    printf("\n--- Clientes com saldo negativo ---\n");
+    achou = 0;
+    for (i = 0; i < b->qtdClientes; i++) {
+        for (j = 0; j < b->clientes[i].qtdContas; j++) {
+            if (b->clientes[i].contas[j].saldo < 0) {
+                printf("%s | conta %d (%s) | R$ %.2f\n", b->clientes[i].nome,
+                       b->clientes[i].contas[j].numero, nomeTipo(b->clientes[i].contas[j].tipo),
+                       b->clientes[i].contas[j].saldo);
+                achou = 1;
+            }
+        }
+    }
+    if (!achou) {
+        printf("(nenhum)\n");
+    }
+
+    printf("\n--- Contas salario com saldo entre %.0f e %.0f ---\n", SALARIO_MIN, SALARIO_MAX);
+    achou = 0;
+    for (i = 0; i < b->qtdClientes; i++) {
+        for (j = 0; j < b->clientes[i].qtdContas; j++) {
+            if (b->clientes[i].contas[j].tipo == SALARIO && b->clientes[i].contas[j].saldo >= SALARIO_MIN &&
+                b->clientes[i].contas[j].saldo <= SALARIO_MAX) {
+                printf("%s | conta %d | R$ %.2f\n", b->clientes[i].nome, b->clientes[i].contas[j].numero,
+                       b->clientes[i].contas[j].saldo);
+                achou = 1;
+            }
+        }
+    }
+    if (!achou) {
+        printf("(nenhuma)\n");
+    }
 }
