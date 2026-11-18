@@ -17,7 +17,7 @@ int main(void) {
         mostrarMenu();
         printf("opcao: ");
         if (scanf(" %c", &opcao) != 1) {
-            break; /* acabou a entrada */
+            break;
         }
 
         switch (opcao) {
@@ -46,7 +46,7 @@ int main(void) {
                 if (adicionarCliente(&banco, &novo)) {
                     printf("Cliente cadastrado.\n");
                 } else {
-                    liberarCliente(&novo); /* nao coube: devolve a memoria do historico dele */
+                    liberarCliente(&novo);
                     printf("Sem memoria para cadastrar o cliente.\n");
                 }
             }

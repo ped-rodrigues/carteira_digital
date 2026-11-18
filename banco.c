@@ -3,8 +3,6 @@
 #include <string.h>
 #include "meu_banco.h"
 
-/* ---------- menu e entrada ---------- */
-
 void mostrarMenu(void) {
     printf("\n===Banco===\n");
     printf("1 - Abrir banco\n");
@@ -16,16 +14,12 @@ void mostrarMenu(void) {
     printf("s - Sair do banco\n");
 }
 
-/* joga fora o que sobrou digitado ate o Enter */
 void limparBuffer(void) {
     int c;
     while ((c = getchar()) != '\n' && c != EOF) {
     }
 }
 
-/* ---------- ciclo de vida do banco ---------- */
-
-/* reserva (malloc) o vetor de clientes; devolve 1 se deu certo, 0 se faltou memoria */
 int iniciarBanco(Banco *b) {
     b->clientes = malloc(CAPACIDADE_INICIAL * sizeof(Cliente));
     if (b->clientes == NULL) {
@@ -37,13 +31,12 @@ int iniciarBanco(Banco *b) {
     return 1;
 }
 
-/* copia o cliente para o banco; se o vetor estiver cheio, dobra o tamanho (realloc) */
 int adicionarCliente(Banco *b, const Cliente *c) {
     if (b->qtdClientes == b->capacidade) {
         int novaCapacidade = b->capacidade * 2;
         Cliente *novo = realloc(b->clientes, novaCapacidade * sizeof(Cliente));
         if (novo == NULL) {
-            return 0; /* o vetor antigo continua valido */
+            return 0;
         }
         b->clientes = novo;
         b->capacidade = novaCapacidade;
@@ -53,7 +46,6 @@ int adicionarCliente(Banco *b, const Cliente *c) {
     return 1;
 }
 
-/* devolve (free) o historico de um cliente: cada texto e depois o vetor de textos */
 void liberarCliente(Cliente *c) {
     int j;
 
@@ -67,7 +59,6 @@ void liberarCliente(Cliente *c) {
     c->capHistorico = 0;
 }
 
-/* devolve tudo que foi pedido com malloc: o historico de cada cliente e o vetor de clientes */
 void liberarBanco(Banco *b) {
     int i;
 
@@ -80,8 +71,6 @@ void liberarBanco(Banco *b) {
     b->qtdClientes = 0;
     b->capacidade = 0;
 }
-
-/* ---------- regras de contas ---------- */
 
 int combinacaoValida(int tipo1, int tipo2) {
     if (tipo1 == tipo2) {
@@ -150,9 +139,6 @@ float saldoDoTipo(const Cliente *c, int tipo) {
     return 0;
 }
 
-/* ---------- cadastro ---------- */
-
-/* preenche o cliente apontado por c (sem historico ainda: NULL, 0 e 0) */
 void lerCliente(Cliente *c) {
     printf("Nome do cliente: ");
     scanf(" %49[^\n]", c->nome);
@@ -169,7 +155,6 @@ void lerContas(Cliente *c, int primeiroNumero) {
     float saldo;
     int mais = 1;
 
-    /* repete enquanto cabem contas; o cliente precisa ter pelo menos 1 */
     while (c->qtdContas < MAX_CONTAS && (mais || c->qtdContas == 0) && !feof(stdin)) {
         printf("Tipo de conta (1-corrente, 2-salario, 3-poupanca): ");
         if (scanf("%d", &tipo) != 1) {
@@ -201,9 +186,6 @@ void lerContas(Cliente *c, int primeiroNumero) {
     }
 }
 
-/* ---------- emprestimo ---------- */
-
-/* corrente + poupanca, poupanca com saldo e ainda nao pegou emprestimo */
 int podeEmprestimo(const Cliente *c) {
     if (temConta(c, CORRENTE) && temConta(c, POUPANCA) && c->emprestimo == 0 && saldoDoTipo(c, POUPANCA) > 0) {
         return 1;
@@ -211,12 +193,10 @@ int podeEmprestimo(const Cliente *c) {
     return 0;
 }
 
-/* 25% de 10 vezes o saldo da poupanca */
 float limiteEmprestimo(const Cliente *c) {
     return saldoDoTipo(c, POUPANCA) * MULT_EMPRESTIMO * PERC_EMPRESTIMO;
 }
 
-/* credita o valor na conta corrente e marca que o cliente ja pegou (a conferencia do limite e feita antes) */
 void pegarEmprestimo(Cliente *c, float valor) {
     int i;
     char msg[TAM_TEXTO];
@@ -232,9 +212,6 @@ void pegarEmprestimo(Cliente *c, float valor) {
     registrarHistorico(c, msg);
 }
 
-/* ---------- historico ---------- */
-
-/* guarda uma copia do texto (malloc); o vetor de textos cresce com realloc. Devolve 1 se deu certo */
 int registrarHistorico(Cliente *c, const char *texto) {
     char *copia;
 
@@ -277,8 +254,6 @@ void mostrarHistorico(const Banco *b) {
         }
     }
 }
-
-/* ---------- listagens e relatorios ---------- */
 
 void listarClientes(const Banco *b) {
     int i, j;
