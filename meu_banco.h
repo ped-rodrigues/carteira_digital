@@ -40,4 +40,12 @@ Cliente lerCliente(void);
 
 int podeAdicionarConta(Cliente c, int tipoNovo);
 
+Cliente adicionarConta(Cliente c, int numero, int tipoNovo, float saldoInicial);
+
+Cliente lerContas(Cliente c, int primeiroNumero);
+
+int temConta(Cliente c, int tipo);
+
+float saldoDoTipo(Cliente c, int tipo);
+
 #endif
