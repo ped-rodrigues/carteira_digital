@@ -6,11 +6,10 @@
 #define SALARIO 2
 #define POUPANCA 3
 
-/* limites */
-#define MAX_CONTAS 2
-#define MAX_CLIENTES 50
-#define MAX_HISTORICO 20
-#define TAM_TEXTO 80
+/* limites e tamanhos */
+#define MAX_CONTAS 2            /* cada cliente tem no maximo 2 contas */
+#define CAPACIDADE_INICIAL 2    /* o banco comeca com espaco para 2 clientes e cresce sozinho */
+#define TAM_TEXTO 80            /* tamanho maximo de uma linha do historico */
 
 /* regras do emprestimo (a confirmar com a professora) */
 #define MULT_EMPRESTIMO 10      /* 10 vezes o saldo da poupanca ... */
@@ -32,13 +31,15 @@ typedef struct {
     Conta contas[MAX_CONTAS];
     int qtdContas;
     int emprestimo;             /* 0 = ainda nao pegou, 1 = ja pegou */
-    char historico[MAX_HISTORICO][TAM_TEXTO];
-    int qtdHistorico;
+    char **historico;           /* vetor dinamico de textos (cada texto tambem e dinamico) */
+    int qtdHistorico;           /* quantos textos ja existem */
+    int capHistorico;           /* quantos cabem antes de precisar de realloc */
 } Cliente;
 
 typedef struct {
-    Cliente clientes[MAX_CLIENTES];
-    int qtdClientes;
+    Cliente *clientes;          /* vetor dinamico de clientes (malloc / realloc) */
+    int qtdClientes;            /* quantos clientes ja existem */
+    int capacidade;             /* quantos cabem antes de precisar de realloc */
     int aberto;
 } Banco;
 
@@ -46,25 +47,31 @@ typedef struct {
 void mostrarMenu(void);
 void limparBuffer(void);
 
+/* ciclo de vida do banco (malloc / realloc / free) */
+int iniciarBanco(Banco *b);
+int adicionarCliente(Banco *b, const Cliente *c);
+void liberarCliente(Cliente *c);
+void liberarBanco(Banco *b);
+
 /* regras de contas */
 int combinacaoValida(int tipo1, int tipo2);
-int podeAdicionarConta(Cliente c, int tipoNovo);
-Cliente adicionarConta(Cliente c, int numero, int tipoNovo, float saldoInicial);
-int temConta(Cliente c, int tipo);
-float saldoDoTipo(Cliente c, int tipo);
+int podeAdicionarConta(const Cliente *c, int tipoNovo);
+void adicionarConta(Cliente *c, int numero, int tipoNovo, float saldoInicial);
+int temConta(const Cliente *c, int tipo);
+float saldoDoTipo(const Cliente *c, int tipo);
 const char *nomeTipo(int tipo);
 
 /* cadastro */
-Cliente lerCliente(void);
-Cliente lerContas(Cliente c, int primeiroNumero);
+void lerCliente(Cliente *c);
+void lerContas(Cliente *c, int primeiroNumero);
 
 /* emprestimo */
-int podeEmprestimo(Cliente c);
-float limiteEmprestimo(Cliente c);
-Cliente pegarEmprestimo(Cliente c, float valor);
+int podeEmprestimo(const Cliente *c);
+float limiteEmprestimo(const Cliente *c);
+void pegarEmprestimo(Cliente *c, float valor);
 
 /* historico */
-Cliente registrarHistorico(Cliente c, const char *texto);
+int registrarHistorico(Cliente *c, const char *texto);
 void mostrarHistorico(const Banco *b);
 
 /* listagens e relatorios */

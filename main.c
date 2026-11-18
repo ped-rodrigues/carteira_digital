@@ -6,10 +6,12 @@ int main(void) {
     int numCliente;
     float valor;
     float limite;
-
     Banco banco;
-    banco.qtdClientes = 0;
-    banco.aberto = 0;
+
+    if (!iniciarBanco(&banco)) {
+        printf("Sem memoria para iniciar o banco.\n");
+        return 1;
+    }
 
     do {
         mostrarMenu();
@@ -35,17 +37,18 @@ int main(void) {
         case '3':
             if (!banco.aberto) {
                 printf("Abra o banco primeiro.\n");
-            } else if (banco.qtdClientes >= MAX_CLIENTES) {
-                printf("Banco cheio.\n");
             } else {
-                Cliente novo = lerCliente();
+                Cliente novo;
 
-                novo = lerContas(novo, 100 * banco.qtdClientes + 101);
+                lerCliente(&novo);
+                lerContas(&novo, 100 * banco.qtdClientes + 101);
 
-                banco.clientes[banco.qtdClientes] = novo;
-                banco.qtdClientes = banco.qtdClientes + 1;
-
-                printf("Cliente cadastrado.\n");
+                if (adicionarCliente(&banco, &novo)) {
+                    printf("Cliente cadastrado.\n");
+                } else {
+                    liberarCliente(&novo); /* nao coube: devolve a memoria do historico dele */
+                    printf("Sem memoria para cadastrar o cliente.\n");
+                }
             }
             break;
 
@@ -76,22 +79,26 @@ int main(void) {
 
             if (numCliente < 1 || numCliente > banco.qtdClientes) {
                 printf("Cliente invalido.\n");
-            } else if (!podeEmprestimo(banco.clientes[numCliente - 1])) {
-                printf("Esse cliente nao pode pegar emprestimo.\n");
             } else {
-                limite = limiteEmprestimo(banco.clientes[numCliente - 1]);
-                printf("Limite do emprestimo: R$ %.2f\n", limite);
-                printf("Valor desejado: ");
-                if (scanf("%f", &valor) != 1) {
-                    limparBuffer();
-                    valor = 0;
-                }
+                Cliente *cli = &banco.clientes[numCliente - 1];
 
-                if (valor <= 0 || valor > limite) {
-                    printf("Valor invalido (precisa ser maior que 0 e ate o limite).\n");
+                if (!podeEmprestimo(cli)) {
+                    printf("Esse cliente nao pode pegar emprestimo.\n");
                 } else {
-                    banco.clientes[numCliente - 1] = pegarEmprestimo(banco.clientes[numCliente - 1], valor);
-                    printf("Emprestimo aprovado.\n");
+                    limite = limiteEmprestimo(cli);
+                    printf("Limite do emprestimo: R$ %.2f\n", limite);
+                    printf("Valor desejado: ");
+                    if (scanf("%f", &valor) != 1) {
+                        limparBuffer();
+                        valor = 0;
+                    }
+
+                    if (valor <= 0 || valor > limite) {
+                        printf("Valor invalido (precisa ser maior que 0 e ate o limite).\n");
+                    } else {
+                        pegarEmprestimo(cli, valor);
+                        printf("Emprestimo aprovado.\n");
+                    }
                 }
             }
             break;
@@ -115,6 +122,8 @@ int main(void) {
             break;
         }
     } while (opcao != 's');
+
+    liberarBanco(&banco);
 
     return 0;
 }
