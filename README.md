@@ -7,14 +7,17 @@ Trabalho de **Algoritmos e Pensamento Computacional** (UNIPÊ): carteira digital
 | Arquivo | O que tem |
 | --- | --- |
 | `meu_banco.h` | Constantes, `struct`s (`Transacao`, `Conta`, `Cliente`, `Banco`) e protótipos |
-| `banco.c` | Todas as funções: banco, arquivo, cliente, sorteio e histórico |
 | `main.c` | O menu principal |
+| `banco.c` | Banco: memória dinâmica, arquivo, abrir banco e histórico |
+| `cliente.c` | Clientes e contas: cadastro, regras, menu do cliente, empréstimo e títulos |
+| `sorteio.c` | Fibonacci recursivo e o sorteio |
+| `entrada.c` | Leitura segura de números (`scanf` + limpar buffer) |
 | `banco.dat` | Criado sozinho com os dados salvos (não vai pro Git) |
 
 ## Compilar e rodar
 
 ```
-gcc -Wall -Wextra main.c banco.c -o banco
+gcc -Wall -Wextra main.c banco.c cliente.c entrada.c sorteio.c -o banco
 .\banco.exe        (PowerShell)
 ./banco            (Linux / Mac)
 ```
