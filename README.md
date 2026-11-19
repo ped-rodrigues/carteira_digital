@@ -1,132 +1,115 @@
 # Carteira Digital (banco) em C
 
-Trabalho de **Algoritmos e Pensamento Computacional** (UNIPÊ). Programa em C, no terminal, que simula um banco: cadastra clientes com até 2 contas (corrente, salário ou poupança), controla empréstimo, guarda um histórico e mostra relatórios.
+Trabalho de **Algoritmos e Pensamento Computacional** (UNIPÊ): simulação de uma carteira digital no terminal, seguindo o enunciado "Visão do Banco / Visão do Cliente". Usa **funções, registros (`struct`), alocação dinâmica (`malloc`/`realloc`/`free`), ponteiros, modularização e persistência em arquivo**.
 
-A memória é **dinâmica** (`malloc`, `realloc`, `free`) e as funções trabalham com **ponteiros**.
+## Estrutura (módulos)
 
-## Estrutura
-
-| Arquivo | Papel |
+| Arquivo | Responsabilidade |
 | --- | --- |
-| `meu_banco.h` | Constantes, `typedef struct` (`Conta`, `Cliente`, `Banco`) e protótipos. Tem *include guard*. |
-| `banco.c` | O corpo de todas as funções do banco. |
-| `main.c` | O menu e o laço principal. |
+| `main.c` | O menu principal. |
+| `meu_banco.h` / `banco.c` | O **banco**: vetor dinâmico de clientes, abrir/cadastrar, arquivo (`salvarBanco`/`carregarBanco`) e o histórico do banco. |
+| `cliente.h` / `cliente.c` | Tudo do **cliente**: `Transacao`, `Conta`, `Cliente`, regras de contas, depósito, saque, extrato, empréstimo, títulos e o menu do cliente (`sessaoCliente`). |
+| `sorteio.h` / `sorteio.c` | O **sorteio** (Fibonacci). |
+| `entrada.h` / `entrada.c` | Leitura segura do teclado (`lerInteiro`, `lerReal`, `limparBuffer`). |
+| `banco.dat` | Criado sozinho: os dados salvos. Não vai pro Git. |
 
-## Como compilar e rodar
+Quem inclui quem: `meu_banco.h` inclui `cliente.h` (o `Banco` tem `Cliente`); `sorteio.h` inclui `meu_banco.h`. O `cliente.c` não conhece o `Banco`: o `banco.c` chama `escreverCliente` e `lerClienteArquivo` para gravar e ler cada cliente.
 
-```
-gcc -Wall -Wextra main.c banco.c -o banco
-.\banco.exe        (PowerShell)
-./banco            (Linux / Mac)
-```
+## O que o enunciado pede e onde está
 
-O projeto compila **sem nenhum aviso**.
+| Enunciado | Onde está |
+| --- | --- |
+| Campos: cliente, saldo, tipo de conta (01/02/03), histórico, número da conta | `cliente.h`: `Cliente`, `Conta`, `Transacao` |
+| Número de conta de 4 dígitos a partir de 1000 + código do tipo (`1000-01`) | `Cliente.numero` (1000, 1001, ...) + `tipo`; impresso por `textoConta` (`cliente.c`) |
+| O banco pode ter *n* clientes | `Banco.clientes` com `malloc`/`realloc` (`iniciarBanco`, `adicionarCliente`) |
+| Clientes cadastrados com saldo zerado | `abrirBanco` → `cadastrarClientes` → `lerContas` |
+| Menu: abrir banco, consultar histórico, sorteio, sair (histórico e sorteio só com o banco aberto) | `main.c` |
+| Sem conta salário + corrente juntas | `combinacaoValida` / `podeAdicionarConta` |
+| Empréstimo: tem poupança com saldo e conta corrente, um por cliente, limite de 25% de 10× o saldo | `podeEmprestimo`, `limiteEmprestimo`, `pegarEmprestimo` |
+| Títulos de capitalização com salário entre R$ 1.000 e R$ 1.500 | `podeComprarTitulos`, `comprarTitulos` |
+| Alerta de saldo negativo na conta corrente a cada acesso | `sessaoCliente` |
+| Sorteio entre os 5 maiores saldos (todos com títulos), baseado em Fibonacci, prêmio de 10× o saldo | `sorteio.c`: `efetuarSorteio`, `fibonacci`, `sortearPosicao` |
+| Saída do histórico do banco (5 seções do exemplo) | `mostrarHistoricoBanco` |
+| Menu do cliente: depositar, sacar, empréstimo, títulos, extrato (últimas 5, `<valor> :<op>`) | `cliente.c`: `sessaoCliente`, `mostrarExtrato` |
+| Persistência em arquivo | `salvarBanco`, `carregarBanco` |
 
-## Menu
+## Como usar
+
+**Menu principal**
 
 | Opção | O que faz |
 | --- | --- |
-| `1` | Abre o banco (as outras opções só funcionam depois disso) |
-| `2` | Mostra o histórico de cada cliente |
-| `3` | Cadastra um cliente e suas contas |
-| `4` | Lista os clientes, com as contas e se já pegaram empréstimo |
-| `5` | Pede empréstimo (escolhe o cliente e o valor) |
-| `6` | Relatórios finais |
-| `s` ou `S` | Sai (e devolve toda a memória) |
+| `1` | Abre o banco. Se existir `banco.dat`, carrega os dados. Se não, pede quantos clientes cadastrar (contas com saldo zero). |
+| `2` | Consulta o histórico do banco (saldo total, aptos a empréstimo, saldo negativo, aptos a títulos, contemplado no sorteio) |
+| `3` | Efetua o sorteio |
+| `4` | Acessa uma conta pelo número, ex.: `1000-01` (abre o menu do cliente) |
+| `5` | Cadastra mais clientes |
+| `s` / `S` | Sai |
 
-## Regras implementadas
+**Menu do cliente:** `1` depositar, `2` sacar, `3` solicitar empréstimo, `4` adquirir títulos, `5` extrato (op: `S` saque, `D` depósito, `E` empréstimo), `0` voltar.
 
-- Cada cliente tem de **1 a 2 contas**, sem repetir o tipo.
-- **Corrente + salário não pode.** Combinações aceitas: corrente + poupança, salário + poupança, ou uma conta só.
-- Tipos de conta e limites são **constantes com nome** (`CORRENTE`, `SALARIO`, `POUPANCA`, `MAX_CONTAS`, ...).
-- **Empréstimo:** o cliente precisa ter conta corrente **e** poupança, a poupança com saldo maior que zero, e **só pode pegar um**. O limite é **25% de 10 vezes o saldo da poupança** (`MULT_EMPRESTIMO` e `PERC_EMPRESTIMO`). O valor entra na conta corrente.
-- **Histórico** por cliente: abertura de contas e empréstimo.
-- **Relatórios (opção 6):** saldo total do banco; clientes aptos a empréstimo; clientes com saldo negativo; contas salário com saldo entre 1000 e 1500.
+Os dados são salvos em `banco.dat` a cada volta do menu e ao sair. Pra começar do zero, apague o `banco.dat`.
+
+## Decisões onde o enunciado não detalha (a confirmar com a professora)
+
+1. **Número da conta:** o número de 4 dígitos é do **cliente** (1000, 1001, ...), e a conta é `número-tipo` (ex.: `1000-01` corrente e `1000-03` poupança do mesmo cliente).
+2. **Saque:** só a **conta corrente** pode ficar negativa (é a que dispara o alerta). Salário e poupança não aceitam saque maior que o saldo.
+3. **Empréstimo:** o limite usa o **saldo da poupança** e o valor é creditado na **conta corrente**.
+4. **Títulos de capitalização:** exigem saldo de R$ 1.000 a R$ 1.500 na **conta salário**. O enunciado não diz o preço, então a compra **não debita** nada; só registra que o cliente tem títulos.
+5. **Sorteio:** participam os 5 clientes de **maior saldo total** (somando as contas). Todos precisam ter títulos, senão o sorteio é cancelado. Com menos de 5 clientes, participam todos. O prêmio é **10× o saldo da conta salário** do contemplado e é creditado nela (registrado como depósito).
+6. **Algoritmo de Fibonacci do sorteio:** não tenho o algoritmo exato que foi feito em sala. Aqui: escolhe-se um `n` a partir da hora (entre 20 e 49), calcula-se o `fibonacci(n)` e o contemplado é o resto da divisão pela quantidade de participantes. Se o da sala for diferente, só `sortearPosicao` (e `fibonacci`) precisam mudar.
+7. **"Saldo negativo na conta salário":** o exemplo de saída do PDF usa esse título, mas o texto fala de saldo negativo na conta **corrente**. A lista mostra as contas **corrente e salário** com saldo negativo (o número da conta indica qual é). O título é o do exemplo.
+8. **"Clientes aptos a compra de títulos":** lista quem tem salário entre 1.000 e 1.500, tendo comprado ou não.
+9. O menu principal tem uma opção a mais que o enunciado (`4 - Acessar conta`) para entrar na visão do cliente, e `5 - Cadastrar cliente` para novos clientes depois da abertura.
 
 ## Memória dinâmica e ponteiros
 
 | Onde | O que é dinâmico | Como cresce | Quem devolve |
 | --- | --- | --- | --- |
-| `Banco.clientes` | o vetor de clientes | começa com `CAPACIDADE_INICIAL` (2) e **dobra** com `realloc` quando enche | `liberarBanco` |
-| `Cliente.historico` | o vetor de textos do histórico | começa com 4 e dobra | `liberarCliente` |
-| cada texto do histórico | uma cópia do texto, com `malloc(strlen(texto) + 1)` | tamanho exato | `liberarCliente` |
+| `Banco.clientes` | o vetor de clientes | começa com 2 e **dobra** com `realloc` | `liberarBanco` |
+| `Cliente.historico` | o vetor de transações | começa com 4 e dobra | `liberarCliente` |
+| `efetuarSorteio` | vetor auxiliar `usado` (`calloc`) | tamanho = nº de clientes | `free` na própria função |
 
-- `iniciarBanco` faz o primeiro `malloc`; `adicionarCliente` faz o `realloc`; `liberarBanco` faz os `free` (primeiro o histórico de cada cliente, depois o vetor de clientes).
-- As funções que **alteram** recebem um ponteiro (`Cliente *c`, `Banco *b`) e usam a seta: `c->qtdContas`. Chamada: `adicionarConta(&novo, 101, CORRENTE, 500)`.
-- As funções que só **leem** recebem `const Cliente *` ou `const Banco *`: o `const` garante que elas não alteram nada.
-- Todo `malloc`/`realloc` é conferido (`NULL` = faltou memória), e o `realloc` usa um ponteiro auxiliar para não perder o vetor antigo se falhar.
+- Funções que **alteram** recebem ponteiro (`Cliente *c`, `Banco *b`, `Conta *conta`) e usam `->`. Funções que só **leem** recebem `const`.
+- `buscarCliente` e `buscarConta` devolvem **o endereço** do cliente/conta (ou `NULL` se não existir), e quem chama altera o original.
+- Todo `malloc`/`realloc` é conferido. O `realloc` usa um ponteiro auxiliar para não perder o vetor antigo se falhar.
 
-## Funções principais (`banco.c`)
+## Arquivo (`banco.dat`)
 
-- Ciclo de vida: `iniciarBanco`, `adicionarCliente`, `liberarCliente`, `liberarBanco`
-- Contas: `combinacaoValida`, `podeAdicionarConta`, `adicionarConta`, `temConta`, `saldoDoTipo`, `nomeTipo`
-- Cadastro: `lerCliente`, `lerContas`
-- Empréstimo: `podeEmprestimo`, `limiteEmprestimo`, `pegarEmprestimo`
-- Histórico: `registrarHistorico`, `mostrarHistorico`
-- Relatórios: `listarClientes`, `saldoTotal`, `mostrarRelatorios`
-- Entrada: `limparBuffer` (descarta o que sobrou digitado até o Enter)
+Texto simples, uma estrutura por linha:
+
+```
+<qtdClientes> <ganhador> <premio>
+<numero> <emprestimo> <titulos> <qtdContas> <qtdTransacoes>
+<nome>
+<tipo> <saldo>           (uma linha por conta)
+<valor> <op>             (uma linha por transação)
+```
+
+`carregarBanco` confere o formato: se o arquivo estiver corrompido, o banco volta ao estado vazio e pede o cadastro.
 
 ## Testado
 
-- Roteiro com 3 clientes: conta barrada (salário + corrente), empréstimo acima do limite recusado, segundo empréstimo recusado, cliente inexistente, saldo negativo, relatórios e histórico conferidos.
-- 9 clientes seguidos (força o `realloc` do vetor de clientes 3 vezes) e 20 registros de histórico em um cliente (força o `realloc` do histórico).
-- Compilado com `-fsanitize=address,undefined`: **sem vazamento de memória e sem acesso inválido**.
+- Cadastro (inclusive combinação proibida), acesso por `1000-01`, depósito, saque, saque que deixa a corrente negativa com alerta no acesso seguinte, empréstimo (acima do limite recusado, no limite aceito, segundo recusado), títulos, extrato, as 5 seções do histórico.
+- Sorteio com 6 clientes (o de menor saldo fica de fora), cancelado quando alguém não tem títulos, prêmio de 10× creditado, e com menos de 5 clientes.
+- Fechar e reabrir: os dados voltam do `banco.dat`. Arquivo com lixo ou truncado não derruba o programa.
+- Compilado com `-fsanitize=address,undefined`: sem vazamento e sem acesso inválido, inclusive com a entrada acabando no meio do cadastro.
 
 ## Como explicar o código
 
-### Roteiro (uns 5 minutos)
+1. **A ideia (30 s):** "É uma carteira digital. O banco tem vários clientes, cada um com até 2 contas. O cliente deposita, saca, pega empréstimo e compra títulos; o banco faz sorteio e mostra relatórios. Tudo fica salvo em arquivo."
 
-1. **A ideia (30 s).** "É um banco no terminal. Cada cliente tem até 2 contas, pode pegar um empréstimo e o banco mostra relatórios."
-2. **Os 3 arquivos (1 min).** `meu_banco.h` *declara* (constantes, tipos, protótipos), `banco.c` *faz* (o corpo das funções), `main.c` só cuida do menu.
-3. **Os dados (1 min).** Três `struct` encaixadas: o `Banco` aponta para um vetor de `Cliente`, e cada `Cliente` tem até 2 `Conta` e um histórico. Mostre o `meu_banco.h` de cima pra baixo e aponte os dois `*` (`Cliente *clientes` e `char **historico`).
-4. **A memória (1 min).** "O banco não tem tamanho fixo: começa com espaço pra 2 clientes e, quando enche, o `realloc` dobra. No fim, `liberarBanco` devolve tudo com `free`."
-5. **Uma execução (1 min 30 s).** Abra o banco (1), cadastre um cliente com corrente + poupança (3), peça um empréstimo (5) e mostre os relatórios (6), apontando a função que roda em cada passo.
+3. **Os dados (1 min):** o `Banco` aponta pra um vetor de `Cliente`; cada `Cliente` tem até 2 `Conta` e um histórico de `Transacao`. Aponte os dois ponteiros (`Cliente *clientes` e `Transacao *historico`).
+4. **A memória (1 min):** "começa com espaço pra 2 clientes e dobra com `realloc` quando enche; no final o `liberarBanco` devolve tudo com `free`."
+5. **Uma execução (2 min):** abrir banco (cadastrar), acessar `1000-01`, depositar, sacar, empréstimo, extrato; depois o histórico do banco e o sorteio.
 
-### De onde vem cada coisa que aparece na tela
+**Perguntas que costumam fazer**
 
-| Você faz | Função que roda | O que ela decide |
-| --- | --- | --- |
-| Cadastra um cliente | `lerCliente` e `lerContas` | pergunta nome, tipo e saldo |
-| Digita um tipo de conta | `podeAdicionarConta` → `combinacaoValida` | no máximo 2 contas, sem repetir, sem corrente + salário |
-| A conta entra | `adicionarConta` | grava na próxima vaga livre (`contas[qtdContas]`) e registra no histórico |
-| O cliente entra no banco | `adicionarCliente` | copia pro vetor; se encheu, dobra com `realloc` |
-| Pede empréstimo | `podeEmprestimo` → `limiteEmprestimo` → `pegarEmprestimo` | confere as regras, calcula o limite e credita na corrente |
-| Abre os relatórios | `mostrarRelatorios` | percorre todos os clientes e contas |
-| Sai do programa | `liberarBanco` | `free` em tudo que foi pedido com `malloc` |
-
-### Perguntas que costumam fazer (e respostas curtas)
-
-- **O que é um ponteiro?** Uma variável que guarda **o endereço** de outra coisa na memória. `Cliente *c` guarda onde o cliente está, em vez de uma cópia dele.
-- **Por que passar ponteiro e não o cliente inteiro?** Em C a função recebe uma **cópia**. Com ponteiro, ela altera o cliente **original** (não precisa devolver) e não gasta tempo copiando a struct inteira.
-- **O que é `->`?** É o ponto para ponteiros: `c->qtdContas` significa "o `qtdContas` do cliente **para o qual** `c` aponta". É o mesmo que `(*c).qtdContas`.
-- **O que é o `&` em `adicionarConta(&novo, ...)`?** "O endereço de `novo`". É assim que se entrega o ponteiro para a função.
-- **O que faz o `malloc`?** Pede ao sistema um bloco de memória do tamanho que você diz (`n * sizeof(Cliente)`) e devolve o endereço dele, ou `NULL` se não houver.
-- **E o `realloc`?** Troca o bloco por um maior, copiando o conteúdo. Pode devolver outro endereço, por isso a gente guarda o resultado num ponteiro auxiliar e só troca se não for `NULL`.
-- **Por que precisa de `free`?** Memória pedida com `malloc` não some sozinha. Sem `free` ela fica ocupada até o programa acabar (*vazamento de memória*).
-- **Por que o `liberarBanco` faz `free` em tantas coisas?** Cada `malloc` precisa do seu `free`. Cada texto do histórico foi um `malloc`, o vetor de textos foi outro e o vetor de clientes outro. Libera de dentro pra fora.
-- **Por que `const Banco *b` nos relatórios?** Elas só *leem*. O `const` impede que alterem o banco sem querer, e o ponteiro evita copiar o banco inteiro.
-- **Por que `.h` e `.c` separados?** O `.h` diz *o que existe* e o `.c` diz *como funciona*. O `main` só precisa do `.h`.
-- **O que é o `#ifndef MEU_BANCO_H`?** O *include guard*: impede que o `.h` seja incluído duas vezes e dê erro de tipo repetido.
-- **Por que `#define` nos números?** `CORRENTE` é mais claro que `1`, e se um valor mudar, troca em um lugar só.
-- **Por que `100 * banco.qtdClientes + 101` no número da conta?** Dá 101 e 102 pro 1º cliente, 201 e 202 pro 2º, e assim por diante. Nenhum número se repete.
-- **O que faz `scanf(" %49[^\n]", nome)`?** Lê o nome **com espaços** até o Enter. O espaço no começo descarta o Enter que sobrou da leitura anterior, e o `49` evita estourar o vetor `nome[50]` (sobra 1 posição pro `'\0'`).
-- **Por que as funções devolvem 1 ou 0?** É a convenção do C: 1 = sim, 0 = não. Dá pra usar direto no `if`, como em `if (podeEmprestimo(c))`.
-- **E se o usuário digitar algo errado?** Os `scanf` conferem o retorno; se não leu um número, o programa limpa a entrada (`limparBuffer`) e trata como inválido, sem travar.
-
-### Pontos fortes pra destacar
-
-- Cada regra do enunciado virou **uma função pequena e testável**.
-- Memória dinâmica de verdade: o banco **cresce sozinho** e **devolve tudo** no final (conferido com detector de vazamento).
-- Constantes com nome em vez de números soltos.
-- Compila com `-Wall -Wextra` sem nenhum aviso.
-
-## A confirmar com a professora
-
-1. `emprestimo` como `char` (`'S'`/`'N'`) ou `int` (0/1, como está).
-2. Tipos de conta numerados de 1 a 3 (aqui) ou de 0 a 2.
-3. Onde ela espera o `malloc`: hoje está nos clientes e no histórico (as contas são um vetor fixo de 2, porque a regra limita a 2).
-4. A base do limite do empréstimo (saldo da poupança, como está, ou soma das contas) e se os 25% estão certos.
-5. Histórico por cliente (como está) ou do banco inteiro.
-6. O título e o conteúdo exato da 4ª lista e do item "R$ valor : quantidade".
-
-Se alguma regra mudar, quase tudo se resolve alterando uma função ou uma constante no `meu_banco.h`.
+- **Ponteiro?** Variável que guarda o **endereço** de outra coisa. `Cliente *c` aponta para um cliente em vez de ser uma cópia.
+- **Por que passar ponteiro?** Em C a função recebe uma cópia. Com ponteiro ela altera o original e não copia a struct inteira.
+- **`->` e `&`?** `c->saldo` é "o `saldo` do cliente para o qual `c` aponta". `&novo` é "o endereço de `novo`".
+- **`malloc`, `realloc`, `free`?** Pedir memória, trocar por um bloco maior (copiando o conteúdo) e devolver. Todo `malloc` precisa de um `free`.
+- **Por que `.h` e `.c`?** O `.h` diz o que existe; o `.c` diz como funciona.
+- **Por que as funções devolvem 1 ou 0?** Convenção do C: 1 = sim, 0 = não, e dá pra usar direto no `if`.
+- **Como salva?** `fprintf` escreve em texto no `banco.dat`; `fscanf`/`fgets` leem de volta e recriam os clientes com `malloc`.
+- **Como funciona o sorteio?** Pega os 5 maiores saldos, confere os títulos, calcula `fibonacci(n) % participantes` e credita 10× o saldo salário do sorteado.

@@ -1,11 +1,13 @@
 #include <stdio.h>
 #include "meu_banco.h"
+#include "entrada.h"
+#include "sorteio.h"
 
 int main(void) {
     char opcao = ' ';
-    int numCliente;
-    float valor;
-    float limite;
+    int numero, tipo;
+    Cliente *cliente;
+    Conta *conta;
     Banco banco;
 
     if (!iniciarBanco(&banco)) {
@@ -22,90 +24,48 @@ int main(void) {
 
         switch (opcao) {
         case '1':
-            banco.aberto = 1;
-            printf("Banco aberto.\n");
+            abrirBanco(&banco);
             break;
 
         case '2':
             if (banco.aberto) {
-                mostrarHistorico(&banco);
+                mostrarHistoricoBanco(&banco);
             } else {
                 printf("Abra o banco primeiro.\n");
             }
             break;
 
         case '3':
-            if (!banco.aberto) {
-                printf("Abra o banco primeiro.\n");
+            if (banco.aberto) {
+                efetuarSorteio(&banco);
             } else {
-                Cliente novo;
-
-                lerCliente(&novo);
-                lerContas(&novo, 100 * banco.qtdClientes + 101);
-
-                if (adicionarCliente(&banco, &novo)) {
-                    printf("Cliente cadastrado.\n");
-                } else {
-                    liberarCliente(&novo);
-                    printf("Sem memoria para cadastrar o cliente.\n");
-                }
+                printf("Abra o banco primeiro.\n");
             }
             break;
 
         case '4':
-            if (banco.aberto) {
-                listarClientes(&banco);
-            } else {
-                printf("Abra o banco primeiro.\n");
-            }
-            break;
-
-        case '5':
             if (!banco.aberto) {
                 printf("Abra o banco primeiro.\n");
                 break;
             }
-            if (banco.qtdClientes == 0) {
-                printf("Nenhum cliente cadastrado.\n");
+            printf("Numero da conta (ex.: 1000-01): ");
+            if (scanf("%d-%d", &numero, &tipo) != 2) {
+                limparBuffer();
+                printf("Numero de conta invalido.\n");
                 break;
             }
-
-            listarClientes(&banco);
-            printf("Numero do cliente: ");
-            if (scanf("%d", &numCliente) != 1) {
-                limparBuffer();
-                numCliente = 0;
-            }
-
-            if (numCliente < 1 || numCliente > banco.qtdClientes) {
-                printf("Cliente invalido.\n");
+            cliente = buscarCliente(&banco, numero);
+            conta = (cliente != NULL) ? buscarConta(cliente, tipo) : NULL;
+            if (conta == NULL) {
+                printf("Conta nao encontrada.\n");
             } else {
-                Cliente *cli = &banco.clientes[numCliente - 1];
-
-                if (!podeEmprestimo(cli)) {
-                    printf("Esse cliente nao pode pegar emprestimo.\n");
-                } else {
-                    limite = limiteEmprestimo(cli);
-                    printf("Limite do emprestimo: R$ %.2f\n", limite);
-                    printf("Valor desejado: ");
-                    if (scanf("%f", &valor) != 1) {
-                        limparBuffer();
-                        valor = 0;
-                    }
-
-                    if (valor <= 0 || valor > limite) {
-                        printf("Valor invalido (precisa ser maior que 0 e ate o limite).\n");
-                    } else {
-                        pegarEmprestimo(cli, valor);
-                        printf("Emprestimo aprovado.\n");
-                    }
-                }
+                sessaoCliente(cliente, conta);
             }
             break;
 
-        case '6':
+        case '5':
             if (banco.aberto) {
-                mostrarRelatorios(&banco);
+                cadastrarClientes(&banco);
             } else {
                 printf("Abra o banco primeiro.\n");
             }
@@ -120,6 +80,10 @@ int main(void) {
         default:
             printf("opcao invalida.\n");
             break;
+        }
+
+        if (banco.aberto) {
+            salvarBanco(&banco, ARQUIVO_BANCO);
         }
     } while (opcao != 's');
 
